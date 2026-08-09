@@ -1,0 +1,38 @@
+# render.yaml — Deploy backend to Render (https://render.com)
+# 
+# How to use:
+# 1. Push this repo to GitHub
+# 2. Go to https://dashboard.render.com/new/blueprint
+# 3. Connect your repo — Render will detect this file automatically
+# 4. Set the required environment variables in the Render dashboard:
+#    - MONGODB_URI      → Your MongoDB Atlas connection string
+#    - JWT_SECRET       → A strong random secret (generate at: https://randomkeygen.com)
+#    - FRONTEND_URL     → https://<your-github-username>.github.io (for CORS)
+#
+# Render will auto-deploy on every push to your default branch.
+
+services:
+  - type: web
+    name: slop-slot-booking-backend
+    runtime: node
+    rootDir: Slot-Booking-System-Backend
+    buildCommand: npm install
+    startCommand: npm start
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGODB_URI
+        sync: false   # Set this manually in the Render dashboard (never commit credentials)
+      - key: JWT_SECRET
+        sync: false   # Set this manually in the Render dashboard
+      - key: JWT_EXPIRE
+        value: 7d
+      - key: FRONTEND_URL
+        sync: false   # Set to: https://<your-github-username>.github.io
+      - key: RATE_LIMIT_WINDOW_MS
+        value: 900000
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: 100
