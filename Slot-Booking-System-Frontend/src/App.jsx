@@ -15,6 +15,7 @@ import Contact from './pages/Contact';
 import EditBooking from './pages/EditBooking';
 import NewBooking from './pages/NewBooking';
 import authAPI from './services/authAPI';
+import ResetPassword from './pages/ResetPassword';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, user, requiredRole }) => {
@@ -98,6 +99,14 @@ function App() {
             element={
               <PublicRoute user={user}>
                 <ForgotPassword />
+              </PublicRoute>
+            }
+          />
+          <Route
+            path="/reset-password"
+            element={
+              <PublicRoute user={user}>
+                <ResetPassword onLogin={handleLogin} />
               </PublicRoute>
             }
           />

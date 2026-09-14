@@ -13,7 +13,6 @@ const EditBooking = ({ user }) => {
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState('');
-  const [bookingData, setBookingData] = useState(null);
 
   // Fetch booking data on mount
   useEffect(() => {
@@ -24,7 +23,6 @@ const EditBooking = ({ user }) => {
         
         if (response.success && response.data) {
           const booking = response.data.booking || response.data;
-          setBookingData(booking);
           
           // Initialize form data
           setFormData({

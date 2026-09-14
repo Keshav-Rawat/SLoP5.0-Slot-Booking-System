@@ -43,14 +43,14 @@ export const protect = async (req, res, next) => {
       }
 
       next();
-    } catch (error) {
+    } catch (_error) {
       return res.status(401).json({
         success: false,
         error: 'Not authorized, token failed',
         statusCode: 401
       });
     }
-  } catch (error) {
+  } catch (_error) {
     return res.status(500).json({
       success: false,
       error: 'Server error',

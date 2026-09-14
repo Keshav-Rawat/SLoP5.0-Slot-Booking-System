@@ -1,5 +1,6 @@
-export const errorHandler = (err, req, res, next) => {
-  let error = { ...err };
+export const errorHandler = (err, req, res, _next) => {
+  const _error = { ...err };
+  let error = _error;
   error.message = err.message;
 
   // Log error for debugging

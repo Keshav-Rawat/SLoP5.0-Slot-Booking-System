@@ -38,7 +38,6 @@ const Login = ({ onLogin }) => {
 
       if (response.success && response.data) {
         const userData = response.data.user;
-        const token = response.data.token;
         
         if (userData) {
           onLogin(userData);

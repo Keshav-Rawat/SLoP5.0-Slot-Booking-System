@@ -255,24 +255,6 @@ export const deleteSlot = async (req, res, next) => {
 // @access  Private (club_admin, super_admin)
 export const bookSlot = async (req, res, next) => {
   try {
-    const slot = await Slot.findById(req.params.id);
-
-    if (!slot) {
-      return res.status(404).json({
-        success: false,
-        error: 'Slot not found',
-        statusCode: 404
-      });
-    }
-
-    if (slot.status !== SLOT_STATUS.AVAILABLE) {
-      return res.status(400).json({
-        success: false,
-        error: 'This slot is not available for booking',
-        statusCode: 400
-      });
-    }
-
     const {
       eventName,
       eventDescription,
@@ -282,7 +264,7 @@ export const bookSlot = async (req, res, next) => {
       specialInstructions
     } = req.body;
 
-    // Validate required fields
+    // Validate required fields first (before hitting the DB)
     if (!eventName || !eventDescription || !expectedParticipants || !contactPerson) {
       return res.status(400).json({
         success: false,
@@ -291,8 +273,35 @@ export const bookSlot = async (req, res, next) => {
       });
     }
 
-    // Check capacity
+    // Atomically claim the slot — only succeeds if it is still 'available'.
+    // Eliminates the TOCTOU race condition.
+    const slot = await Slot.findOneAndUpdate(
+      { _id: req.params.id, status: SLOT_STATUS.AVAILABLE },
+      { $set: { status: SLOT_STATUS.BOOKED, bookedBy: req.user._id } },
+      { new: true }
+    );
+
+    if (!slot) {
+      const slotExists = await Slot.findById(req.params.id);
+      if (!slotExists) {
+        return res.status(404).json({
+          success: false,
+          error: 'Slot not found',
+          statusCode: 404
+        });
+      }
+      return res.status(409).json({
+        success: false,
+        error: 'This slot is no longer available for booking',
+        statusCode: 409
+      });
+    }
+
+    // Check capacity — roll back if exceeded
     if (expectedParticipants > slot.capacity) {
+      await Slot.findByIdAndUpdate(req.params.id, {
+        $set: { status: SLOT_STATUS.AVAILABLE, bookedBy: null }
+      });
       return res.status(400).json({
         success: false,
         error: `Expected participants (${expectedParticipants}) exceed slot capacity (${slot.capacity})`,
@@ -320,11 +329,6 @@ export const bookSlot = async (req, res, next) => {
     }
 
     const booking = await Booking.create(bookingData);
-
-    // Mark slot as booked
-    slot.status = SLOT_STATUS.BOOKED;
-    slot.bookedBy = req.user._id;
-    await slot.save();
 
     const populatedBooking = await Booking.findById(booking._id)
       .populate('slot', 'venue date startTime endTime capacity location status')

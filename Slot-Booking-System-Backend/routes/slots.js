@@ -12,14 +12,13 @@ import {
 
 const router = express.Router();
 
-// Publicly available (but authenticated)
-router.use(protect);
-
-// Get all slots
+// Public routes — no authentication required
+// Visitors can browse available slots without an account (matches documentation)
 router.get('/', getAllSlots);
-
-// Get single slot
 router.get('/:id', getSlotById);
+
+// All routes below require authentication
+router.use(protect);
 
 // Book a slot (club_admin, super_admin)
 router.put('/:id/book', authorize(USER_ROLES.CLUB_ADMIN, USER_ROLES.SUPER_ADMIN), bookSlot);

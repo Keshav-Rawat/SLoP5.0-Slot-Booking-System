@@ -8,7 +8,7 @@ import { BOOKING_STATUS, SLOT_STATUS } from '../utils/constants.js';
 // @access  Private (club_admin, super_admin)
 export const getAllBookings = async (req, res, next) => {
   try {
-    const { status, club, startDate, endDate, page, limit } = req.query;
+    const { status, club, page, limit } = req.query;
     const { skip, limit: pageLimit } = paginate(page, limit);
 
     // Build filter
@@ -171,26 +171,38 @@ export const createBooking = async (req, res, next) => {
       });
     }
 
-    // Check slot exists and is available
-    const slot = await Slot.findById(slotId);
+    // Atomically claim the slot — only succeeds if it is still 'available'.
+    // This eliminates the TOCTOU race condition where two concurrent requests
+    // both observe status === 'available' before either marks it booked.
+    const slot = await Slot.findOneAndUpdate(
+      { _id: slotId, status: SLOT_STATUS.AVAILABLE },
+      { $set: { status: SLOT_STATUS.BOOKED, bookedBy: req.user._id } },
+      { new: true }
+    );
+
     if (!slot) {
-      return res.status(404).json({
+      // Either the slot doesn't exist or it was claimed by a concurrent request
+      const slotExists = await Slot.findById(slotId);
+      if (!slotExists) {
+        return res.status(404).json({
+          success: false,
+          error: 'Slot not found',
+          statusCode: 404
+        });
+      }
+      return res.status(409).json({
         success: false,
-        error: 'Slot not found',
-        statusCode: 404
+        error: 'This slot is no longer available for booking',
+        statusCode: 409
       });
     }
 
-    if (slot.status !== SLOT_STATUS.AVAILABLE) {
-      return res.status(400).json({
-        success: false,
-        error: 'This slot is not available for booking',
-        statusCode: 400
-      });
-    }
-
-    // Check capacity
+    // Check capacity (now that we have the slot document)
     if (expectedParticipants > slot.capacity) {
+      // Roll back the atomic claim — restore slot to available
+      await Slot.findByIdAndUpdate(slotId, {
+        $set: { status: SLOT_STATUS.AVAILABLE, bookedBy: null }
+      });
       return res.status(400).json({
         success: false,
         error: `Expected participants (${expectedParticipants}) exceed slot capacity (${slot.capacity})`,
@@ -198,22 +210,27 @@ export const createBooking = async (req, res, next) => {
       });
     }
 
-    // Check for existing booking on this slot
+    // Check for an existing active booking on this slot (defensive; slot status should
+    // already prevent this, but guard against orphaned records)
     const existingBooking = await Booking.findOne({
       slot: slotId,
       status: { $in: [BOOKING_STATUS.PENDING, BOOKING_STATUS.APPROVED] }
     });
 
     if (existingBooking) {
-      return res.status(400).json({
+      // Roll back
+      await Slot.findByIdAndUpdate(slotId, {
+        $set: { status: SLOT_STATUS.AVAILABLE, bookedBy: null }
+      });
+      return res.status(409).json({
         success: false,
         error: 'This slot already has an active booking',
-        statusCode: 400
+        statusCode: 409
       });
     }
 
-    // Create booking
-    const bookingData = {
+    // Create the booking record
+    const newBookingData = {
       slot: slotId,
       user: req.user._id,
       club: club || req.user.club || 'General',
@@ -225,18 +242,13 @@ export const createBooking = async (req, res, next) => {
     };
 
     if (requirements && requirements.length > 0) {
-      bookingData.requirements = requirements;
+      newBookingData.requirements = requirements;
     }
     if (specialInstructions) {
-      bookingData.specialInstructions = specialInstructions;
+      newBookingData.specialInstructions = specialInstructions;
     }
 
-    const booking = await Booking.create(bookingData);
-
-    // Mark slot as booked
-    slot.status = SLOT_STATUS.BOOKED;
-    slot.bookedBy = req.user._id;
-    await slot.save();
+    const booking = await Booking.create(newBookingData);
 
     // Populate and return
     const populatedBooking = await Booking.findById(booking._id)

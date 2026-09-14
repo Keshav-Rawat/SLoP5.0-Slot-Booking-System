@@ -8,6 +8,10 @@
 #    - MONGODB_URI      → Your MongoDB Atlas connection string
 #    - JWT_SECRET       → A strong random secret (generate at: https://randomkeygen.com)
 #    - FRONTEND_URL     → https://<your-github-username>.github.io (for CORS)
+#    - GMAIL_USER       → Gmail address used to send password reset emails
+#    - GMAIL_PASS       → Gmail App Password (NOT your regular password)
+#                         Create at: https://myaccount.google.com/apppasswords
+#    - GMAIL_FROM       → (optional) display name, e.g. "SLoP Booking <you@gmail.com>"
 #
 # Render will auto-deploy on every push to your default branch.
 
@@ -36,3 +40,9 @@ services:
         value: 900000
       - key: RATE_LIMIT_MAX_REQUESTS
         value: 100
+      - key: GMAIL_USER
+        sync: false   # your-gmail@gmail.com
+      - key: GMAIL_PASS
+        sync: false   # 16-char Gmail App Password
+      - key: GMAIL_FROM
+        sync: false   # e.g. "SLoP Booking System <your-gmail@gmail.com>"

@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 const userSchema = new mongoose.Schema({
   name: {
@@ -46,6 +47,17 @@ const userSchema = new mongoose.Schema({
   lastLogin: {
     type: Date,
     default: null
+  },
+  // Password reset fields
+  resetPasswordToken: {
+    type: String,
+    default: null,
+    select: false  // Never included in query results by default
+  },
+  resetPasswordExpire: {
+    type: Date,
+    default: null,
+    select: false
   }
 }, {
   timestamps: true
@@ -73,10 +85,31 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
+// Generate a password reset token.
+// Returns the raw (un-hashed) token to include in the reset link.
+// Stores only the SHA-256 hash in the DB — never the raw token.
+userSchema.methods.generatePasswordResetToken = function() {
+  // 32 random bytes → 64-character hex string
+  const rawToken = crypto.randomBytes(32).toString('hex');
+
+  // Hash and store (so the DB never contains the raw token)
+  this.resetPasswordToken = crypto
+    .createHash('sha256')
+    .update(rawToken)
+    .digest('hex');
+
+  // Token valid for 1 hour
+  this.resetPasswordExpire = Date.now() + 60 * 60 * 1000;
+
+  return rawToken; // send this in the email URL
+};
+
 // Method to remove password from JSON output
 userSchema.methods.toJSON = function() {
   const obj = this.toObject();
   delete obj.password;
+  delete obj.resetPasswordToken;
+  delete obj.resetPasswordExpire;
   return obj;
 };
 
